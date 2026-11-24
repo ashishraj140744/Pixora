@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 from io import BytesIO
+from smart_compress import compress_image
 st.set_page_config(
     page_title="Pixora - Image Compressor",
     page_icon="🖼️",
