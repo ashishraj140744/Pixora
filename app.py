@@ -87,5 +87,41 @@ if uploaded_file is not None:
         st.metric("Height", f"{height} px")
         st.write(f"**Format:** {image_format}")
         st.write(f"**File Name:** {uploaded_file.name}")
+    st.divider()
+    st.subheader("PCA Compression")
+    st.write("Experiment with dimensionality reduction using PCA.")
+    components = st.slider(
+        "Number of principal components",
+        min_value=1,
+        max_value=100,
+        value=30
+    )
+    if st.button("Apply PCA"):
+        pca_data, mse, psnr, pca_image = pca_compress(
+            image,
+            components
+        )
+        st.session_state["pca_data"] = pca_data
+        st.session_state["pca_mse"] = mse
+        st.session_state["pca_psnr"] = psnr
+        st.session_state["pca_image"] = pca_image
+    if "pca_data" in st.session_state:
+        st.subheader("PCA Reconstruction")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(image, caption="Original Image")
+        with col2:
+            st.image(
+                st.session_state["pca_image"],
+                caption="PCA Reconstructed Image"
+            )
+        st.metric("MSE", f"{st.session_state['pca_mse']:.2f}")
+        st.metric("PSNR", f"{st.session_state['pca_psnr']:.2f} dB")
+        st.download_button(
+            "Download PCA Image",
+            data=st.session_state["pca_data"],
+            file_name="pixora_pca.png",
+            mime="image/png"
+        )
 else:
     st.info("Upload an image to get started.")
