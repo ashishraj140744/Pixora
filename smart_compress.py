@@ -1,46 +1,63 @@
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
-def compress_image(image, target_kb, output_format="JPEG"):
-    target_bytes = target_kb * 1024
+def encode_image(image, output_format, quality):
+    buffer = BytesIO()
     if output_format == "JPEG":
-        image = image.convert("RGB")
-    elif output_format == "WEBP":
-        image = image.convert("RGB")
-    best_image = None
-    best_size = float("inf")
+        image.save(
+            buffer,
+            format="JPEG",
+            quality=quality,
+            optimize=False
+        )
+    else:
+        image.save(
+            buffer,
+            format="WEBP",
+            quality=quality,
+            method=2
+        )
+    return buffer.getvalue()
+def smart_compress(image, target_kb, output_format="WEBP"):
+    image = ImageOps.exif_transpose(image).convert("RGB")
+    target_bytes = int(target_kb * 1024)
     low = 10
     high = 95
+    best_data = None
+    best_quality = 10
+    smallest_data = None
+    smallest_quality = 10
+    smallest_size = float("inf")
     while low <= high:
         quality = (low + high) // 2
-        buffer = BytesIO()
-        if output_format == "JPEG":
-            image.save(
-                buffer,
-                format="JPEG",
-                quality=quality,
-                optimize=True
-            )
-        else:
-            image.save(
-                buffer,
-                format="WEBP",
-                quality=quality,
-                method=6
-            )
-        compressed_data = buffer.getvalue()
+        compressed_data = encode_image(
+            image,
+            output_format,
+            quality
+        )
         compressed_size = len(compressed_data)
+        if compressed_size < smallest_size:
+            smallest_size = compressed_size
+            smallest_data = compressed_data
+            smallest_quality = quality
         if compressed_size <= target_bytes:
-            if target_bytes - compressed_size < target_bytes - best_size:
-                best_image = compressed_data
-                best_size = compressed_size
+            best_data = compressed_data
+            best_quality = quality
             low = quality + 1
         else:
             high = quality - 1
-    if best_image is None:
-        buffer = BytesIO()
-        if output_format == "JPEG":
-            image.save(buffer, format="JPEG", quality=10, optimize=True)
-        else:
-            image.save(buffer, format="WEBP", quality=10, method=6)
-        best_image = buffer.getvalue()
-    return best_image
+    target_achieved = best_data is not None
+    if target_achieved:
+        final_data = best_data
+        final_quality = best_quality
+    else:
+        final_data = smallest_data
+        final_quality = smallest_quality
+    preview = Image.open(
+        BytesIO(final_data)
+    ).copy()
+    return (
+        final_data,
+        preview,
+        final_quality,
+        target_achieved
+    )
