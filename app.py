@@ -1,3 +1,7 @@
+import os
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 import streamlit as st
 from PIL import Image, ImageOps
 from io import BytesIO

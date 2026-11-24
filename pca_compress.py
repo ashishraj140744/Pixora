@@ -1,3 +1,7 @@
+import os
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 import numpy as np
 from PIL import Image, ImageOps
 from io import BytesIO
@@ -5,53 +9,66 @@ def randomized_svd(matrix, components, oversampling=8):
     rows, cols = matrix.shape
     sample_size = min(
         components + oversampling,
-        min(rows, cols)
+        rows,
+        cols
     )
     rng = np.random.default_rng(42)
-    omega = rng.standard_normal((cols, sample_size))
-    projected = matrix @ omega
-    projected = matrix @ (matrix.T @ projected)
+    omega = rng.standard_normal(
+        (cols, sample_size),
+        dtype=np.float32
+    )
     Q, _ = np.linalg.qr(
-        projected,
+        matrix @ omega,
         mode="reduced"
     )
-    small_matrix = Q.T @ matrix
+    Q, _ = np.linalg.qr(
+        matrix @ (matrix.T @ Q),
+        mode="reduced"
+    )
     U_small, S, VT = np.linalg.svd(
-        small_matrix,
+        Q.T @ matrix,
         full_matrices=False
     )
     U = Q @ U_small[:, :components]
     return U, S[:components], VT[:components, :]
 def pca_compress(image, quality_retention=90):
     image = ImageOps.exif_transpose(image).convert("RGB")
-    pixels = np.asarray(image, dtype=np.float64)
+    pixels = np.asarray(image, dtype=np.uint8)
     height, width, _ = pixels.shape
     max_components = min(128, height, width)
     components = max(
         1,
         round(max_components * quality_retention / 100)
     )
-    reconstructed_channels = []
+    reconstructed_image = np.empty_like(pixels)
+    squared_error = 0.0
     for channel in range(3):
-        matrix = pixels[:, :, channel]
-        mean = np.mean(matrix, axis=0)
-        centered = matrix - mean
+        matrix = pixels[:, :, channel].astype(np.float32)
+        mean = matrix.mean(axis=0)
+        matrix -= mean
         U, S, VT = randomized_svd(
-            centered,
+            matrix,
             components
         )
-        reconstructed = (U * S) @ VT + mean
-        reconstructed_channels.append(reconstructed)
-    reconstructed_image = np.stack(
-        reconstructed_channels,
-        axis=2
-    )
-    reconstructed_image = np.clip(
-        reconstructed_image, 0, 255
-    ).astype(np.uint8)
-    mse = np.mean(
-        (pixels - reconstructed_image.astype(np.float64)) ** 2
-    )
+        reconstructed = (U * S) @ VT
+        reconstructed += mean
+        np.clip(
+            reconstructed,
+            0,
+            255,
+            out=reconstructed
+        )
+        reconstructed_image[:, :, channel] = reconstructed
+        del reconstructed, U, S, VT
+        matrix[:] = pixels[:, :, channel]
+        matrix -= reconstructed_image[:, :, channel]
+        np.square(matrix, out=matrix)
+        squared_error += np.sum(
+            matrix,
+            dtype=np.float64
+        )
+        del matrix
+    mse = squared_error / pixels.size
     psnr = (
         float("inf")
         if mse == 0
@@ -75,4 +92,4 @@ def pca_compress(image, quality_retention=90):
         mse,
         psnr,
         components
-    ) 
+    )
