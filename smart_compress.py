@@ -8,7 +8,7 @@ def encode_image(image, output_format, quality):
             format="JPEG",
             quality=quality,
             optimize=False
-        )
+        ) 
     else:
         image.save(
             buffer,

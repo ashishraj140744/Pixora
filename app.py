@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Pixora | Image Compressor",
     page_icon="🖼️",
     layout="wide"
-)
+) 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');

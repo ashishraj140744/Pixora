@@ -75,4 +75,4 @@ def pca_compress(image, quality_retention=90):
         mse,
         psnr,
         components
-    )
+    ) 
